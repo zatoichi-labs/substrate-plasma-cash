@@ -11,18 +11,18 @@ mod cli;
 pub use substrate_cli::{VersionInfo, IntoExit, error};
 
 fn main() {
-	let version = VersionInfo {
-		name: "Substrate Node",
-		commit: env!("VERGEN_SHA_SHORT"),
-		version: env!("CARGO_PKG_VERSION"),
-		executable_name: "plasma-cash",
-		author: "Zatoichi Labs",
-		description: "plasma-cash",
-		support_url: "support.anonymous.an",
-	};
+    let version = VersionInfo {
+        name: "Substrate Node",
+        commit: env!("VERGEN_SHA_SHORT"),
+        version: env!("CARGO_PKG_VERSION"),
+        executable_name: "plasma-cash",
+        author: "Zatoichi Labs",
+        description: "plasma-cash",
+        support_url: "support.anonymous.an",
+    };
 
-	if let Err(e) = cli::run(::std::env::args(), cli::Exit, version) {
-		eprintln!("Fatal error: {}\n\n{:?}", e, e);
-		std::process::exit(1)
-	}
+    if let Err(e) = cli::run(::std::env::args(), cli::Exit, version) {
+        eprintln!("Fatal error: {}\n\n{:?}", e, e);
+        std::process::exit(1)
+    }
 }
