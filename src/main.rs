@@ -15,9 +15,9 @@ fn main() {
 		name: "Substrate Node",
 		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
-		executable_name: "node-template",
-		author: "Anonymous",
-		description: "Template Node",
+		executable_name: "plasma-cash",
+		author: "Zatoichi Labs",
+		description: "plasma-cash",
 		support_url: "support.anonymous.an",
 	};
 
