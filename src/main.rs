@@ -12,13 +12,13 @@ pub use substrate_cli::{VersionInfo, IntoExit, error};
 
 fn main() {
     let version = VersionInfo {
-        name: "Substrate Node",
+        name: "Plasma Cash",
         commit: env!("VERGEN_SHA_SHORT"),
         version: env!("CARGO_PKG_VERSION"),
         executable_name: "plasma-cash",
         author: "Zatoichi Labs",
-        description: "plasma-cash",
-        support_url: "support.anonymous.an",
+        description: "Plasma Cash Client, written in Substrate",
+        support_url: "https://github.com/zatoichi-labs/substrate-plasma-cash",
     };
 
     if let Err(e) = cli::run(::std::env::args(), cli::Exit, version) {
