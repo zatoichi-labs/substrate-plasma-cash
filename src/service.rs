@@ -1,4 +1,6 @@
-//! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
+//! Service and ServiceFactory implementation. Specialized wrapper over Substrate service.
+
+#![warn(unused_extern_crates)]
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,7 +20,7 @@ pub use substrate_executor::NativeExecutor;
 native_executor_instance!(
     pub Executor,
     plasma_cash_runtime::api::dispatch,
-    plasma_cash_runtime::native_version
+    plasma_cash_runtime::native_version,
 );
 
 construct_simple_protocol! {
@@ -37,7 +39,9 @@ macro_rules! new_full_start {
         let mut tasks_to_spawn = None;
 
         let builder = substrate_service::ServiceBuilder::new_full::<
-            plasma_cash_runtime::opaque::Block, plasma_cash_runtime::RuntimeApi, crate::service::Executor
+            plasma_cash_runtime::opaque::Block,
+            plasma_cash_runtime::RuntimeApi,
+            crate::service::Executor
         >($config)?
             .with_select_chain(|_config, client| {
                 #[allow(deprecated)]
@@ -63,7 +67,7 @@ macro_rules! new_full_start {
                     client.clone(),
                     client,
                     inherent_data_providers.clone(),
-                    Some(transaction_pool)
+                    Some(transaction_pool),
                 )?;
 
                 import_setup = Some((babe_block_import.clone(), link_half, babe_link));
@@ -76,7 +80,6 @@ macro_rules! new_full_start {
     }}
 }
 
-/// Builds a new service for a full client.
 pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisConfig>)
     -> Result<impl AbstractService, ServiceError>
 {
@@ -84,8 +87,8 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
     let (builder, mut import_setup, inherent_data_providers, mut tasks_to_spawn) = new_full_start!(config);
 
     let service = builder.with_network_protocol(|_| Ok(NodeProtocol::new()))?
-        .with_finality_proof_provider(|client|
-            Ok(Arc::new(GrandpaFinalityProofProvider::new(client.clone(), client)) as _)
+        .with_finality_proof_provider(
+            |client| Ok(Arc::new(GrandpaFinalityProofProvider::new(client.clone(), client)) as _)
         )?
         .build()?;
 
@@ -130,8 +133,8 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
         let babe = start_babe(babe_config)?;
         let select = babe.select(service.on_exit()).then(|_| Ok(()));
 
-        // the BABE authoring task is considered infallible, i.e. if it
-        // fails we take down the service with it.
+        // The BABE authoring task is considered infalliable, i.e. if it
+        // fails then we take down the service with it.
         service.spawn_essential_task(select);
     }
 
@@ -156,7 +159,7 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
         (true, false) => {
             // start the full GRANDPA voter
             let grandpa_config = grandpa::GrandpaParams {
-                config: config,
+                config,
                 link: link_half,
                 network: service.network(),
                 inherent_data_providers: inherent_data_providers.clone(),
@@ -164,8 +167,8 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
                 telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
             };
 
-            // the GRANDPA voter task is considered infallible, i.e.
-            // if it fails we take down the service with it.
+            // the GRANDPA voter task is consider infalliable, i.e.
+            // if it fails then we take down the service with it.
             service.spawn_essential_task(grandpa::run_grandpa_voter(grandpa_config)?);
         },
         (_, true) => {
@@ -191,8 +194,8 @@ pub fn new_light<C: Send + Default + 'static>(config: Configuration<C, GenesisCo
             #[allow(deprecated)]
             Ok(LongestChain::new(client.backend().clone()))
         })?
-        .with_transaction_pool(|config, client|
-            Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(client)))
+        .with_transaction_pool(
+            |config, client| Ok(TransactionPool::new(config, transaction_pool::ChainApi::new(client)))
         )?
         .with_import_queue_and_fprb(|_config, client, _select_chain, transaction_pool| {
             #[allow(deprecated)]
@@ -217,14 +220,14 @@ pub fn new_light<C: Send + Default + 'static>(config: Configuration<C, GenesisCo
                 client.clone(),
                 client,
                 inherent_data_providers.clone(),
-                Some(transaction_pool)
+                Some(transaction_pool),
             )?;
 
             Ok((import_queue, finality_proof_request_builder))
         })?
         .with_network_protocol(|_| Ok(NodeProtocol::new()))?
-        .with_finality_proof_provider(|client|
-            Ok(Arc::new(GrandpaFinalityProofProvider::new(client.clone(), client)) as _)
+        .with_finality_proof_provider(
+            |client| Ok(Arc::new(GrandpaFinalityProofProvider::new(client.clone(), client)) as _)
         )?
         .build()
 }

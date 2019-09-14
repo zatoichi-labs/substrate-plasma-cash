@@ -12,13 +12,15 @@ use rstd::prelude::*;
 use primitives::{OpaqueMetadata, crypto::key_types};
 use sr_primitives::{
     ApplyResult, transaction_validity::TransactionValidity, generic, create_runtime_str,
-    impl_opaque_keys, AnySignature
+    impl_opaque_keys, AnySignature,
 };
 use sr_primitives::traits::{NumberFor, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Verify, ConvertInto};
 use sr_primitives::weights::Weight;
+
 use babe::{AuthorityId as BabeId};
 use grandpa::{AuthorityId as GrandpaId, AuthorityWeight as GrandpaWeight};
 use grandpa::fg_primitives::{self, ScheduledChange};
+
 use client::{
     block_builder::api::{CheckInherentsResult, InherentData, self as block_builder_api},
     runtime_api as client_api, impl_runtime_apis
@@ -35,7 +37,7 @@ pub use balances::Call as BalancesCall;
 pub use sr_primitives::{Permill, Perbill};
 pub use support::{StorageValue, construct_runtime, parameter_types};
 
-/// An index to a block.
+/// Index of a block number in the chain.
 pub type BlockNumber = u32;
 
 /// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
@@ -78,7 +80,7 @@ pub mod opaque {
     pub type Block = generic::Block<Header, UncheckedExtrinsic>;
     /// Opaque block identifier type.
     pub type BlockId = generic::BlockId<Block>;
-
+    /// Opaque session key handler types.
     pub type SessionHandlers = (Grandpa, Babe);
 
     impl_opaque_keys! {
@@ -171,7 +173,7 @@ impl system::Trait for Runtime {
     type Origin = Origin;
     /// Maximum number of block number to block hash mappings to keep (oldest pruned first).
     type BlockHashCount = BlockHashCount;
-    /// Maximum weight of each block. With a default weight system of 1byte == 1weight, 4mb is ok.
+    /// Maximum weight of each block. With a default system of 1byte = 1weight, 4mb is ok.
     type MaximumBlockWeight = MaximumBlockWeight;
     /// Maximum size of all encoded transactions (in bytes) that are allowed in one block.
     type MaximumBlockLength = MaximumBlockLength;
@@ -207,7 +209,7 @@ impl indices::Trait for Runtime {
 }
 
 parameter_types! {
-    pub const MinimumPeriod: u64 = 5000;
+    pub const MinimumPeriod: u64 = 5000; // 5 sec period
 }
 
 impl timestamp::Trait for Runtime {
@@ -278,7 +280,7 @@ pub type Address = <Indices as StaticLookup>::Source;
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-/// A Block signed with a Justification
+/// A Block signed with a Justification.
 pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
@@ -298,6 +300,7 @@ pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExt
 /// Executive: handles dispatch to the various modules.
 pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
 
+// Implement our runtime API endpoints. This is just a bunch of proxying.
 impl_runtime_apis! {
     impl client_api::Core<Block> for Runtime {
         fn version() -> RuntimeVersion {

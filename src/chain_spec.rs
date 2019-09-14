@@ -46,70 +46,78 @@ impl Alternative {
     pub(crate) fn load(self) -> Result<ChainSpec, String> {
         Ok(match self {
             Alternative::Development => ChainSpec::from_genesis(
-                "Development",
-                "dev",
-                || testnet_genesis(vec![
-                    get_authority_keys_from_seed("Alice"),
-                ],
-                get_from_seed::<AccountId>("Alice"),
-                vec![
-                    get_from_seed::<AccountId>("Alice"),
-                    get_from_seed::<AccountId>("Bob"),
-                    get_from_seed::<AccountId>("Alice//stash"),
-                    get_from_seed::<AccountId>("Bob//stash"),
-                ],
-                true),
-                vec![],
-                None,
-                None,
-                None,
-                None
+                "Development", // Network Name
+                "dev", // Network ID
+                || testnet_genesis(
+                    vec![ // Authorities
+                        get_authority_keys_from_seed("Alice"),
+                    ],
+                    get_from_seed::<AccountId>("Alice"), // Sudo Key
+                    vec![ // Token Distribution
+                        get_from_seed::<AccountId>("Alice"),
+                        get_from_seed::<AccountId>("Bob"),
+                        get_from_seed::<AccountId>("Alice//stash"),
+                        get_from_seed::<AccountId>("Bob//stash"),
+                    ],
+                    true, // Enable println!
+                ), // Genesis constructor
+                vec![], // Boot Nodes
+                None, // Telemetry Endpoints
+                None, // Protocol ID
+                None, // Consensus Engine
+                None, // Properties
             ),
             Alternative::LocalTestnet => ChainSpec::from_genesis(
-                "Local Testnet",
-                "local_testnet",
-                || testnet_genesis(vec![
-                    get_authority_keys_from_seed("Alice"),
-                    get_authority_keys_from_seed("Bob"),
-                ], 
-                get_from_seed::<AccountId>("Alice"),
-                vec![
+                "Local Testnet", // Network Name
+                "local_testnet", // Network ID
+                || testnet_genesis(
+                    vec![ // Authorities
+                        get_authority_keys_from_seed("Alice"),
+                        get_authority_keys_from_seed("Bob"),
+                    ],
                     get_from_seed::<AccountId>("Alice"),
-                    get_from_seed::<AccountId>("Bob"),
-                    get_from_seed::<AccountId>("Charlie"),
-                    get_from_seed::<AccountId>("Dave"),
-                    get_from_seed::<AccountId>("Eve"),
-                    get_from_seed::<AccountId>("Ferdie"),
-                    get_from_seed::<AccountId>("Alice//stash"),
-                    get_from_seed::<AccountId>("Bob//stash"),
-                    get_from_seed::<AccountId>("Charlie//stash"),
-                    get_from_seed::<AccountId>("Dave//stash"),
-                    get_from_seed::<AccountId>("Eve//stash"),
-                    get_from_seed::<AccountId>("Ferdie//stash"),
-                ],
-                true),
-                vec![],
-                None,
-                None,
-                None,
-                None
+                    vec![ // Token Distribution
+                         get_from_seed::<AccountId>("Alice"),
+                         get_from_seed::<AccountId>("Bob"),
+                         get_from_seed::<AccountId>("Charlie"),
+                         get_from_seed::<AccountId>("Dave"),
+                         get_from_seed::<AccountId>("Eve"),
+                         get_from_seed::<AccountId>("Ferdie"),
+                         get_from_seed::<AccountId>("Alice//stash"),
+                         get_from_seed::<AccountId>("Bob//stash"),
+                         get_from_seed::<AccountId>("Charlie//stash"),
+                         get_from_seed::<AccountId>("Dave//stash"),
+                         get_from_seed::<AccountId>("Eve//stash"),
+                         get_from_seed::<AccountId>("Ferdie//stash"),
+                    ], // Token Distribution
+                    true, // Enable println!
+                ), // Genesis constructor
+                vec![], // Boot Nodes
+                None, // Telemetry Endpoints
+                None, // Protocol ID
+                None, // Consensus Engine
+                None, // Properties
             ),
         })
     }
 
     pub(crate) fn from(s: &str) -> Option<Self> {
         match s {
+            // Dev config is used for live testing
             "dev" => Some(Alternative::Development),
+            // Default chain is local config, used for demos
             "" | "local" => Some(Alternative::LocalTestnet),
             _ => None,
         }
     }
 }
 
-fn testnet_genesis(initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId)>,
+fn testnet_genesis(
+    initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId)>,
     root_key: AccountId, 
     endowed_accounts: Vec<AccountId>,
-    _enable_println: bool) -> GenesisConfig {
+    _enable_println: bool
+) -> GenesisConfig {
     GenesisConfig {
         system: Some(SystemConfig {
             code: WASM_BINARY.to_vec(),
