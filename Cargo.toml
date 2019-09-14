@@ -1,5 +1,13 @@
+[package]
+authors = ['Zatoichi Labs <admin@zatoichilabs.com>']
+build = 'build.rs'
+edition = '2018'
+name = 'plasma-cash'
+version = '1.0.0'
+
 [build-dependencies]
 vergen = '3'
+
 [profile.release]
 panic = 'unwind'
 
@@ -90,13 +98,6 @@ rev = '3ba0f2a2dbd37c31851a0ff1c1c0c47aa940de90'
 git = 'https://github.com/paritytech/substrate.git'
 package = 'substrate-transaction-pool'
 rev = '3ba0f2a2dbd37c31851a0ff1c1c0c47aa940de90'
-
-[package]
-authors = ['Zatoichi Labs']
-build = 'build.rs'
-edition = '2018'
-name = 'plasma-cash'
-version = '2.0.0'
 
 [[bin]]
 name = 'plasma-cash'
