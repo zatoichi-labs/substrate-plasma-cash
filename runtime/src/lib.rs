@@ -14,7 +14,7 @@ use sr_primitives::{
     ApplyResult, transaction_validity::TransactionValidity, generic, create_runtime_str,
     impl_opaque_keys, AnySignature,
 };
-use sr_primitives::traits::{NumberFor, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Verify, ConvertInto};
+use sr_primitives::traits::{NumberFor, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Verify};
 use sr_primitives::weights::Weight;
 
 use babe::{AuthorityId as BabeId};
@@ -25,6 +25,8 @@ use client::{
     block_builder::api::{CheckInherentsResult, InherentData, self as block_builder_api},
     runtime_api as client_api, impl_runtime_apis
 };
+use system::IsDeadAccount;
+
 use version::RuntimeVersion;
 #[cfg(feature = "std")]
 use version::NativeVersion;
@@ -33,7 +35,6 @@ use version::NativeVersion;
 #[cfg(any(feature = "std", test))]
 pub use sr_primitives::BuildStorage;
 pub use timestamp::Call as TimestampCall;
-pub use balances::Call as BalancesCall;
 pub use sr_primitives::{Permill, Perbill};
 pub use support::{StorageValue, construct_runtime, parameter_types};
 
@@ -50,9 +51,6 @@ pub type AccountId = <Signature as Verify>::Signer;
 /// The type for looking up accounts. We don't expect more than 4 billion of them, but you
 /// never know...
 pub type AccountIndex = u32;
-
-/// Balance of an account.
-pub type Balance = u128;
 
 /// Index of a transaction in the chain.
 pub type Index = u32;
@@ -196,6 +194,15 @@ impl grandpa::Trait for Runtime {
     type Event = Event;
 }
 
+// HACK: No transaction payments in use
+pub struct NeverDead();
+
+impl IsDeadAccount<AccountId> for NeverDead {
+    fn is_dead_account(_who: &AccountId) -> bool {
+        false
+    }
+}
+
 impl indices::Trait for Runtime {
     /// The type for recording indexing into the account enumeration. If this ever overflows, there
     /// will be problems!
@@ -203,8 +210,8 @@ impl indices::Trait for Runtime {
     /// Use the standard means of resolving an index hint from an id.
     type ResolveHint = indices::SimpleResolveHint<Self::AccountId, Self::AccountIndex>;
     /// Determine whether an account is dead.
-    type IsDeadAccount = Balances;
-    /// The ubiquitous event type.
+    type IsDeadAccount = NeverDead;
+    /// The uniquitous event type.
     type Event = Event;
 }
 
@@ -227,27 +234,6 @@ parameter_types! {
     pub const TransactionByteFee: u128 = 1;
 }
 
-impl balances::Trait for Runtime {
-    /// The type for recording an account's balance.
-    type Balance = Balance;
-    /// What to do if an account's free balance gets zeroed.
-    type OnFreeBalanceZero = ();
-    /// What to do if a new account is created.
-    type OnNewAccount = Indices;
-    /// The ubiquitous event type.
-    type Event = Event;
-
-    type TransactionPayment = ();
-    type DustRemoval = ();
-    type TransferPayment = ();
-    type ExistentialDeposit = ExistentialDeposit;
-    type TransferFee = TransferFee;
-    type CreationFee = CreationFee;
-    type TransactionBaseFee = TransactionBaseFee;
-    type TransactionByteFee = TransactionByteFee;
-    type WeightToFee = ConvertInto;
-}
-
 impl plasma_cash::Trait for Runtime {
     type Event = Event;
 }
@@ -263,7 +249,6 @@ construct_runtime!(
         Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
         Grandpa: grandpa::{Module, Call, Storage, Config, Event},
         Indices: indices::{default, Config<T>},
-        Balances: balances,
         PlasmaCash: plasma_cash::{Module, Call, Storage, Event<T>},
     }
 );
@@ -285,7 +270,6 @@ pub type SignedExtra = (
     system::CheckEra<Runtime>,
     system::CheckNonce<Runtime>,
     system::CheckWeight<Runtime>,
-    balances::TakeFees<Runtime>
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;

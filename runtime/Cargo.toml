@@ -17,7 +17,6 @@ std = [
     'rstd/std',
     'runtime-io/std',
     'support/std',
-    'balances/std',
     'babe/std',
     'babe-primitives/std',
     'executive/std',
@@ -44,12 +43,6 @@ rev = '3ba0f2a2dbd37c31851a0ff1c1c0c47aa940de90'
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 package = 'substrate-consensus-babe-primitives'
-rev = '3ba0f2a2dbd37c31851a0ff1c1c0c47aa940de90'
-
-[dependencies.balances]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-package = 'srml-balances'
 rev = '3ba0f2a2dbd37c31851a0ff1c1c0c47aa940de90'
 
 [dependencies.client]

@@ -1,7 +1,7 @@
 use primitives::{Pair, Public};
 use plasma_cash_runtime::{
-    AccountId, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
-    IndicesConfig, SystemConfig, WASM_BINARY,
+    AccountId, BabeConfig, GenesisConfig, GrandpaConfig,
+    SystemConfig, WASM_BINARY,
 };
 use babe_primitives::{AuthorityId as BabeId};
 use grandpa_primitives::{AuthorityId as GrandpaId};
@@ -52,12 +52,6 @@ impl Alternative {
                     vec![ // Authorities
                         get_authority_keys_from_seed("Alice"),
                     ],
-                    vec![ // Token Distribution
-                        get_from_seed::<AccountId>("Alice"),
-                        get_from_seed::<AccountId>("Bob"),
-                        get_from_seed::<AccountId>("Alice//stash"),
-                        get_from_seed::<AccountId>("Bob//stash"),
-                    ],
                     true, // Enable println!
                 ), // Genesis constructor
                 vec![], // Boot Nodes
@@ -74,20 +68,6 @@ impl Alternative {
                         get_authority_keys_from_seed("Alice"),
                         get_authority_keys_from_seed("Bob"),
                     ],
-                    vec![ // Token Distribution
-                         get_from_seed::<AccountId>("Alice"),
-                         get_from_seed::<AccountId>("Bob"),
-                         get_from_seed::<AccountId>("Charlie"),
-                         get_from_seed::<AccountId>("Dave"),
-                         get_from_seed::<AccountId>("Eve"),
-                         get_from_seed::<AccountId>("Ferdie"),
-                         get_from_seed::<AccountId>("Alice//stash"),
-                         get_from_seed::<AccountId>("Bob//stash"),
-                         get_from_seed::<AccountId>("Charlie//stash"),
-                         get_from_seed::<AccountId>("Dave//stash"),
-                         get_from_seed::<AccountId>("Eve//stash"),
-                         get_from_seed::<AccountId>("Ferdie//stash"),
-                    ], // Token Distribution
                     true, // Enable println!
                 ), // Genesis constructor
                 vec![], // Boot Nodes
@@ -112,7 +92,6 @@ impl Alternative {
 
 fn testnet_genesis(
     initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId)>,
-    endowed_accounts: Vec<AccountId>,
     _enable_println: bool
 ) -> GenesisConfig {
     GenesisConfig {
@@ -120,13 +99,7 @@ fn testnet_genesis(
             code: WASM_BINARY.to_vec(),
             changes_trie_config: Default::default(),
         }),
-        indices: Some(IndicesConfig {
-            ids: endowed_accounts.clone(),
-        }),
-        balances: Some(BalancesConfig {
-            balances: endowed_accounts.iter().cloned().map(|k|(k, 1 << 60)).collect(),
-            vesting: vec![],
-        }),
+        indices: None,
         babe: Some(BabeConfig {
             authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),
         }),
