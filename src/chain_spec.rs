@@ -1,7 +1,7 @@
 use primitives::{Pair, Public};
 use plasma_cash_runtime::{
     AccountId, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
-    SudoConfig, IndicesConfig, SystemConfig, WASM_BINARY, 
+    IndicesConfig, SystemConfig, WASM_BINARY,
 };
 use babe_primitives::{AuthorityId as BabeId};
 use grandpa_primitives::{AuthorityId as GrandpaId};
@@ -52,7 +52,6 @@ impl Alternative {
                     vec![ // Authorities
                         get_authority_keys_from_seed("Alice"),
                     ],
-                    get_from_seed::<AccountId>("Alice"), // Sudo Key
                     vec![ // Token Distribution
                         get_from_seed::<AccountId>("Alice"),
                         get_from_seed::<AccountId>("Bob"),
@@ -75,7 +74,6 @@ impl Alternative {
                         get_authority_keys_from_seed("Alice"),
                         get_authority_keys_from_seed("Bob"),
                     ],
-                    get_from_seed::<AccountId>("Alice"),
                     vec![ // Token Distribution
                          get_from_seed::<AccountId>("Alice"),
                          get_from_seed::<AccountId>("Bob"),
@@ -114,7 +112,6 @@ impl Alternative {
 
 fn testnet_genesis(
     initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId)>,
-    root_key: AccountId, 
     endowed_accounts: Vec<AccountId>,
     _enable_println: bool
 ) -> GenesisConfig {
@@ -129,9 +126,6 @@ fn testnet_genesis(
         balances: Some(BalancesConfig {
             balances: endowed_accounts.iter().cloned().map(|k|(k, 1 << 60)).collect(),
             vesting: vec![],
-        }),
-        sudo: Some(SudoConfig {
-            key: root_key,
         }),
         babe: Some(BabeConfig {
             authorities: initial_authorities.iter().map(|x| (x.3.clone(), 1)).collect(),

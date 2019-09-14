@@ -248,11 +248,6 @@ impl balances::Trait for Runtime {
     type WeightToFee = ConvertInto;
 }
 
-impl sudo::Trait for Runtime {
-    type Event = Event;
-    type Proposal = Call;
-}
-
 impl plasma_cash::Trait for Runtime {
     type Event = Event;
 }
@@ -269,7 +264,6 @@ construct_runtime!(
         Grandpa: grandpa::{Module, Call, Storage, Config, Event},
         Indices: indices::{default, Config<T>},
         Balances: balances,
-        Sudo: sudo,
         PlasmaCash: plasma_cash::{Module, Call, Storage, Event<T>},
     }
 );
