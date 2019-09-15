@@ -106,5 +106,6 @@ fn testnet_genesis(
         grandpa: Some(GrandpaConfig {
             authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
         }),
+        plasma_cash: None,
     }
 }
