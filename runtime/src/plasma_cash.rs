@@ -74,7 +74,21 @@ pub trait Trait: system::Trait {
 decl_storage! {
     trait Store for Module<T: Trait> as PlasmaCashModule {
         // State Database of Token: Transaction pairs
-        Tokens: map TokenId => Option<Transaction>;
+        Tokens build(|config: &GenesisConfig| {
+            config.initial_tokendb
+                .iter()
+                .cloned()
+                // Note: Storage items must be unique, or they will be overwritten
+                // TODO Fix this!
+                .map(|txn| (txn.token_id, txn))
+                .collect::<Vec<_>>()
+        }): map TokenId => Option<Transaction>;
+    }
+
+    // Genesis may be empty (or not, if starting with some initial params)
+    // Note: Might be desirable for privacy properties to start non-empty?
+    add_extra_genesis {
+        config(initial_tokendb): Vec<Transaction>;
     }
 }
 
