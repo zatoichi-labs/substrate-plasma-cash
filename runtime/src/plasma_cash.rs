@@ -19,9 +19,16 @@ use runtime_io::{sr25519_verify, blake2_256};
 use primitives::sr25519::{Public, Signature};
 use primitives::{H256, H512, U256};
 
+// Use Custom logic module
+use plasma_cash_token::{
+    PlasmaCashTxn, TxnCmp,
+    BigEndian, BitVec,
+};
+
 // Custom types
 pub type AccountId = Public;
 pub type TokenId = U256;
+pub type BlkNum = U256;
 pub type TxnHash = H256;
 
 /// Transaction structure
