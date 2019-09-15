@@ -1,6 +1,7 @@
 ///
 /// Author: Zatoichi Labs
 ///
+// Adapted from https://github.com/substrate-developer-hub/utxo-workshop
 
 use support::{
     decl_module, decl_storage, decl_event, ensure,
@@ -13,8 +14,9 @@ use system::ensure_signed;
 use serde::{Deserialize, Serialize};
 use codec::{Decode, Encode};
 
+// Cryptography primitives
 use runtime_io::{sr25519_verify, blake2_256};
-use primitives::sr25519::{Signature, Public};
+use primitives::sr25519::{Public, Signature};
 use primitives::{H256, H512, U256};
 
 // Custom types
@@ -64,9 +66,6 @@ impl Transaction {
 
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
-    // TODO: Add other types and constants required configure this module.
-
-    /// The overarching event type.
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 }
 
@@ -92,7 +91,6 @@ decl_storage! {
     }
 }
 
-// The module's dispatchable functions.
 decl_module! {
     pub struct Module<T: Trait> for enum Call where origin: T::Origin {
         fn deposit_event() = default;
@@ -121,12 +119,14 @@ decl_module! {
         //deposit(origin, transaction: Transaction)
         //  only authorities can do this
         //  adds deposit from Rootchain into state/txn database
-        //  Total::set(<Total<T>>::get() 1);
 
         //withdraw(origin, tokenId: TokenID)
         //  this is an inherent?
         //  removes tokenId from state database (after withdrawal finalizes)
-        //  Total::set(<Total<T>>::get() - 1);
+
+        //on_finalize()
+        //  publish block to rootchain
+        //  reset txn database
     }
 }
 
