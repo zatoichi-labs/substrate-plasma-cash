@@ -37,13 +37,15 @@ pub type TxnHash = H256;
 pub struct Transaction {
     pub receiver: AccountId,
     pub token_id: TokenId,
-    pub sender: AccountId,
+    pub prev_blk_num: BlkNum,
+    sender: AccountId,
     signature: H512,
 }
 
 impl Transaction {
     pub fn new(receiver: AccountId,
                token_id: TokenId,
+               prev_blk_num: BlkNum,
                sender: AccountId,
                signature: Signature) -> Self
     {
@@ -51,23 +53,95 @@ impl Transaction {
         let txn = Self {
             receiver,
             token_id,
+            prev_blk_num,
             sender,
             signature,
         };
         assert!(txn.valid());
         txn
     }
+}
 
-    pub fn hash(&self) -> TxnHash {
-        TxnHash::from(blake2_256(self.encode().as_ref()))
+impl PlasmaCashTxn<TxnHash> for Transaction {
+    fn token_id(&self) -> BitVec {
+        // Convert U256 to BitVec
+        let mut uid_bytes: [u8; 32] = [0; 32];
+        self.token_id.to_big_endian(&mut uid_bytes);
+        BitVec::<BigEndian, u8>::from_slice(&uid_bytes)
     }
 
-    pub fn valid(&self) -> bool {
+    fn hash_fn() -> (fn(&[u8]) -> TxnHash) {
+        |u| TxnHash::from(blake2_256(&u))
+    }
+
+    fn empty_leaf_hash() -> TxnHash {
+        // Encode empty leaf
+        let msg = (
+            AccountId::from_raw([0; 32]),
+            TokenId::zero(),
+            BlkNum::zero(),
+        ).encode();
+        Self::hash_fn()(&msg)
+    }
+
+    fn leaf_hash(&self) -> TxnHash {
+        // Encode leaf
+        let msg = (
+            &self.receiver,
+            &self.token_id,
+            &self.prev_blk_num,
+        ).encode();
+        Self::hash_fn()(&msg)
+    }
+
+    fn valid(&self) -> bool {
         sr25519_verify(
             &Signature::from_h512(self.signature),
-            self.hash().as_ref(),
+            self.leaf_hash().as_ref(),
             &self.sender,
         )
+    }
+
+    fn compare(&self, other: &Self) -> TxnCmp {
+        // &self.valid() is already true due to constructor
+        // other.valid() is already true due to constructor
+        // Transactions must be with the same tokenId to be related
+        if self.token_id == other.token_id {
+
+            // The other one is the direct parent of this one
+            if self.receiver == other.sender {
+                return TxnCmp::Parent; // FIXME Because this comes first, a cycle is possible
+
+            // This one is the direct parent of the other one
+            } else if self.sender == other.receiver {
+                return TxnCmp::Child;
+
+            // Both of us have the same parent
+            // Note: due to how Plasma Cash is designed, one of these is
+            //       most likely not in the txn trie, unless the operator
+            //       made malicious modifications.
+            } else if self.sender == other.sender {
+
+                // But mine comes before, so I'm earlier
+                if self.prev_blk_num < other.prev_blk_num {
+                    return TxnCmp::EarlierSibling;
+
+                // The other comes before, so I'm later
+                } else if self.prev_blk_num > other.prev_blk_num {
+                    return TxnCmp::LaterSibling;
+
+                // We're both at the same height, but different destinations!
+                } else if self.receiver != other.receiver {
+                    return TxnCmp::DoubleSpend;
+                }
+
+                // We're both the same transaction (same tokenId, reciever, and sender)
+                return TxnCmp::Same;
+            }
+        }
+
+        // All else fails, we're unrelated
+        TxnCmp::Unrelated
     }
 }
 
@@ -112,9 +186,11 @@ decl_module! {
                 .expect("No deposit recorded yet!");
 
             ensure!(
-                 txn.sender == prev_txn.receiver,
+                txn.compare(&prev_txn) == TxnCmp::Parent,
                 "Current owner did not sign transaction!"
             );
+
+            //  TODO reject if currently in withdrawal
 
             Tokens::insert(txn.token_id, txn);
 
