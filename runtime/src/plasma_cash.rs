@@ -19,6 +19,12 @@ use runtime_io::{sr25519_verify, blake2_256};
 use primitives::sr25519::{Public, Signature};
 use primitives::{H256, H512, U256};
 
+// For signing
+#[cfg(feature = "std")]
+use runtime_io::sr25519_sign;
+#[cfg(feature = "std")]
+use primitives::crypto::key_types;
+
 // Use Custom logic module
 use plasma_cash_token::{
     PlasmaCashTxn, TxnCmp,
@@ -42,23 +48,57 @@ pub struct Transaction {
     signature: H512,
 }
 
-impl Transaction {
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+pub struct UnsignedTransaction {
+    pub receiver: AccountId,
+    pub token_id: TokenId,
+    pub prev_blk_num: BlkNum,
+}
+
+impl UnsignedTransaction {
     pub fn new(receiver: AccountId,
                token_id: TokenId,
-               prev_blk_num: BlkNum,
-               sender: AccountId,
-               signature: Signature) -> Self
+               prev_blk_num: BlkNum) -> Self
     {
-        let signature = H512::from(signature);
-        let txn = Self {
+        Self {
             receiver,
             token_id,
             prev_blk_num,
+        }
+    }
+
+    pub fn hash(&self) -> TxnHash {
+        H256::from(blake2_256(&self.encode()))
+    }
+
+    #[cfg(feature = "std")]
+    pub fn sign(&self, sender: AccountId) -> core::result::Result<Transaction, &'static str> {
+        let signature = sr25519_sign(
+            key_types::SR25519,
+            &sender,
+            &self.hash().as_ref(),
+        ).ok_or("Could not sign transaction.")?;
+        Ok(Transaction {
+            receiver: self.receiver.clone(),
+            token_id: self.token_id,
+            prev_blk_num: self.prev_blk_num,
             sender,
-            signature,
-        };
-        assert!(txn.valid());
-        txn
+            signature: H512::from_slice(signature.as_ref()),
+        })
+    }
+}
+
+impl Transaction {
+    pub fn new(receiver: AccountId,
+               token_id: TokenId,
+               prev_blk_num: BlkNum) -> UnsignedTransaction
+    {
+        UnsignedTransaction {
+            receiver,
+            token_id,
+            prev_blk_num,
+        }
     }
 }
 
@@ -76,22 +116,20 @@ impl PlasmaCashTxn<TxnHash> for Transaction {
 
     fn empty_leaf_hash() -> TxnHash {
         // Encode empty leaf
-        let msg = (
+        UnsignedTransaction::new(
             AccountId::from_raw([0; 32]),
             TokenId::zero(),
             BlkNum::zero(),
-        ).encode();
-        Self::hash_fn()(&msg)
+        ).hash()
     }
 
     fn leaf_hash(&self) -> TxnHash {
         // Encode leaf
-        let msg = (
-            &self.receiver,
-            &self.token_id,
-            &self.prev_blk_num,
-        ).encode();
-        Self::hash_fn()(&msg)
+        UnsignedTransaction::new(
+            self.receiver.clone(),
+            self.token_id,
+            self.prev_blk_num,
+        ).hash()
     }
 
     fn valid(&self) -> bool {
