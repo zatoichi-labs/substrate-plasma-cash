@@ -1,7 +1,9 @@
-use primitives::{Pair, Public};
+// TODO: Consider AnySignature instead of H512
+use primitives::{Pair, Public, U256};
 use plasma_cash_runtime::{
-    AccountId, BabeConfig, GenesisConfig, GrandpaConfig,
-    SystemConfig, WASM_BINARY,
+    AccountId, Transaction, TokenId,
+    BabeConfig, GenesisConfig, GrandpaConfig, SystemConfig, PlasmaCashConfig,
+    WASM_BINARY,
 };
 use babe_primitives::{AuthorityId as BabeId};
 use grandpa_primitives::{AuthorityId as GrandpaId};
@@ -24,14 +26,12 @@ pub enum Alternative {
     LocalTestnet,
 }
 
-/// Helper function to generate a crypto pair from seed
 pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
     TPublic::Pair::from_string(&format!("//{}", seed), None)
         .expect("static values are valid; qed")
         .public()
 }
 
-/// Helper function to generate stash, controller and session key from seed
 pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, GrandpaId, BabeId) {
     (
         get_from_seed::<AccountId>(&format!("{}//stash", seed)),
@@ -39,6 +39,18 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, Grandp
         get_from_seed::<GrandpaId>(seed),
         get_from_seed::<BabeId>(seed),
     )
+}
+
+fn txn_for_genesis_acct(seed: &str, token_id: TokenId) -> Transaction {
+    let owner = get_from_seed::<AccountId>(seed);
+    // Construct unsigned transaction
+    Transaction::new(
+        owner.clone(),
+        token_id,
+        U256::from(0),
+    )
+    // Return signed txn
+    .sign(owner).unwrap()
 }
 
 impl Alternative {
@@ -51,6 +63,9 @@ impl Alternative {
                 || testnet_genesis(
                     vec![ // Authorities
                         get_authority_keys_from_seed("Alice"),
+                    ],
+                    vec![ // Token Distribution
+                        txn_for_genesis_acct("Alice", TokenId::from(1)),
                     ],
                     true, // Enable println!
                 ), // Genesis constructor
@@ -68,6 +83,12 @@ impl Alternative {
                         get_authority_keys_from_seed("Alice"),
                         get_authority_keys_from_seed("Bob"),
                     ],
+                    vec![ // Token Distribution
+                        txn_for_genesis_acct("Charlie", TokenId::from(1)),
+                        txn_for_genesis_acct("Dave",    TokenId::from(2)),
+                        txn_for_genesis_acct("Eve",     TokenId::from(3)),
+                        txn_for_genesis_acct("Ferdie",  TokenId::from(4)),
+                    ], // Token Distribution
                     true, // Enable println!
                 ), // Genesis constructor
                 vec![], // Boot Nodes
@@ -92,6 +113,7 @@ impl Alternative {
 
 fn testnet_genesis(
     initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId)>,
+    initial_tokendb: Vec<Transaction>,
     _enable_println: bool
 ) -> GenesisConfig {
     GenesisConfig {
@@ -106,6 +128,8 @@ fn testnet_genesis(
         grandpa: Some(GrandpaConfig {
             authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
         }),
-        plasma_cash: None,
+        plasma_cash: Some(PlasmaCashConfig {
+            initial_tokendb, // Initialize SMT
+        }),
     }
 }
