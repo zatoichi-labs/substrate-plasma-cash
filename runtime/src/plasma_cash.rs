@@ -1,25 +1,25 @@
 ///
 /// Author: Zatoichi Labs
 ///
-// Adapted from https://github.com/substrate-developer-hub/utxo-workshop
 
 use support::{
     decl_module, decl_storage, decl_event, ensure,
     dispatch::Result, StorageMap,
 };
-use system::ensure_signed;
+use system::{
+    //ensure_inherent,
+    ensure_signed,
+};
 
 use primitives::U256;
 
 // Custom types
 pub type TokenId = U256;
 
-/// The module's configuration trait.
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 }
 
-// This module's storage items.
 decl_storage! {
     trait Store for Module<T: Trait> as PlasmaCashModule {
         // State Database of Token: Transaction pairs
@@ -42,9 +42,11 @@ decl_module! {
         pub fn transfer(origin, token_id: TokenId, new_owner: T::AccountId) -> Result {
             let who = ensure_signed(origin)?;
 
+            // Token should exist, check and get current owner
             let prev_owner: T::AccountId = <Tokens<T>>::get(token_id)
-                .expect("No deposit recorded yet!");
+                .expect("Deposit does not exist!");
 
+            // Check provenence
             ensure!(
                 prev_owner == who,
                 "Current owner did not sign transaction!"
@@ -58,23 +60,59 @@ decl_module! {
             Ok(())
         }
 
-        //deposit(origin, transaction: Transaction)
-        //  this is an inherent?
-        //  only authorities can do this
-        //  adds deposit from Rootchain into state/txn database
+        pub fn deposit(origin, token_id: TokenId) -> Result {
+            let who = ensure_signed(origin)?;
 
-        //withdraw(origin, tokenId: TokenID)
-        //  this is an inherent?
-        //  removes tokenId from state database (after withdrawal finalizes)
+            // TODO find a way to sync with rootchain deposit events
 
-        //on_finalize()
-        //  publish block to rootchain
-        //  reset txn database
+            // Token should not exist yet
+            ensure!(
+                !<Tokens<T>>::exists(token_id),
+                "Token already exists!"
+            );
+
+            //  adds deposit from Rootchain into state/txn database
+            <Tokens<T>>::insert(token_id, who);
+
+            // TODO Unsure why we can't this to work w/ types
+            //Self::deposit_event(Event::Deposit(token_id, who));
+            Ok(())
+        }
+
+        pub fn withdraw(origin, token_id: TokenId) -> Result {
+            let who = ensure_signed(origin)?;
+
+            // TODO find a way to sync with rootchain finalize withdrawal events
+
+            // Token should exist, check and get current owner
+            let prev_owner: T::AccountId = <Tokens<T>>::get(token_id)
+                .expect("Deposit does not exist!");
+
+            // Check provenence
+            ensure!(
+                prev_owner == who,
+                "Current owner did not sign transaction!"
+            );
+
+            //  removes tokenId from state database (after withdrawal finalizes)
+            <Tokens<T>>::remove(token_id);
+
+            // TODO Unsure why we can't this to work w/ types
+            //Self::deposit_event(Event::Withdraw(token_id, who));
+            Ok(())
+        }
+
+        fn on_finalize() {
+            //  publish block to rootchain (not sure if this is possible)
+            //  reset txn database (since last synced with rootchain)
+        }
     }
 }
 
 decl_event!(
     pub enum Event<T> where AccountId = <T as system::Trait>::AccountId {
+        Deposit(TokenId, AccountId),
         Transfer(TokenId, AccountId, AccountId),
+        Withdraw(TokenId, AccountId),
     }
 );
