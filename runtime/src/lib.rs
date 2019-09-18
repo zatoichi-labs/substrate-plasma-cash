@@ -62,7 +62,7 @@ pub type Hash = primitives::H256;
 pub type DigestItem = generic::DigestItem<Hash>;
 
 mod plasma_cash;
-pub use plasma_cash::{TokenId, Transaction};
+pub use plasma_cash::TokenId;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -250,7 +250,7 @@ construct_runtime!(
         Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
         Grandpa: grandpa::{Module, Call, Storage, Config, Event},
         Indices: indices::{default, Config<T>},
-        PlasmaCash: plasma_cash::{Module, Call, Storage, Event<T>, Config},
+        PlasmaCash: plasma_cash::{Module, Call, Storage, Event<T>, Config<T>},
     }
 );
 

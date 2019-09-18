@@ -1,7 +1,7 @@
 // TODO: Consider AnySignature instead of H512
-use primitives::{Pair, Public, U256};
+use primitives::{Pair, Public};
 use plasma_cash_runtime::{
-    AccountId, Transaction, TokenId,
+    AccountId, TokenId,
     BabeConfig, GenesisConfig, GrandpaConfig, SystemConfig, PlasmaCashConfig,
     WASM_BINARY,
 };
@@ -41,16 +41,11 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, Grandp
     )
 }
 
-fn txn_for_genesis_acct(seed: &str, token_id: TokenId) -> Transaction {
-    let owner = get_from_seed::<AccountId>(seed);
-    // Construct unsigned transaction
-    Transaction::new(
-        owner.clone(),
+fn genesis_ownership(seed: &str, token_id: TokenId) -> (TokenId, AccountId) {
+    (
         token_id,
-        U256::from(0),
+        get_from_seed::<AccountId>(seed),
     )
-    // Return signed txn
-    .sign(owner).unwrap()
 }
 
 impl Alternative {
@@ -65,7 +60,7 @@ impl Alternative {
                         get_authority_keys_from_seed("Alice"),
                     ],
                     vec![ // Token Distribution
-                        txn_for_genesis_acct("Alice", TokenId::from(1)),
+                        genesis_ownership("Alice", TokenId::from(1)),
                     ],
                     true, // Enable println!
                 ), // Genesis constructor
@@ -84,10 +79,10 @@ impl Alternative {
                         get_authority_keys_from_seed("Bob"),
                     ],
                     vec![ // Token Distribution
-                        txn_for_genesis_acct("Charlie", TokenId::from(1)),
-                        txn_for_genesis_acct("Dave",    TokenId::from(2)),
-                        txn_for_genesis_acct("Eve",     TokenId::from(3)),
-                        txn_for_genesis_acct("Ferdie",  TokenId::from(4)),
+                        genesis_ownership("Charlie", TokenId::from(1)),
+                        genesis_ownership("Dave",    TokenId::from(2)),
+                        genesis_ownership("Eve",     TokenId::from(3)),
+                        genesis_ownership("Ferdie",  TokenId::from(4)),
                     ], // Token Distribution
                     true, // Enable println!
                 ), // Genesis constructor
@@ -113,7 +108,7 @@ impl Alternative {
 
 fn testnet_genesis(
     initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId)>,
-    initial_tokendb: Vec<Transaction>,
+    initial_db: Vec<(TokenId, AccountId)>,
     _enable_println: bool
 ) -> GenesisConfig {
     GenesisConfig {
@@ -129,7 +124,7 @@ fn testnet_genesis(
             authorities: initial_authorities.iter().map(|x| (x.2.clone(), 1)).collect(),
         }),
         plasma_cash: Some(PlasmaCashConfig {
-            initial_tokendb, // Initialize SMT
+            initial_db, // Initialize SMT
         }),
     }
 }
