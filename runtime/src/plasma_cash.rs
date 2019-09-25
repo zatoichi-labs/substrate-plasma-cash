@@ -26,7 +26,7 @@ use runtime_io::sr25519_sign;
 use primitives::crypto::key_types;
 
 // Use Custom logic module
-use plasma_cash_token::{
+use plasma_cash_tokens::{
     PlasmaCashTxn, TxnCmp,
     BigEndian, BitVec,
 };
