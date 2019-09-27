@@ -124,3 +124,156 @@ decl_event!(
         Withdraw(TokenId, AccountId),
     }
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use runtime_io::with_externalities;
+    use primitives::{H256, Blake2Hasher};
+    use support::{impl_outer_origin, assert_ok, parameter_types, assert_noop, impl_outer_event};
+    use sr_primitives::{traits::{BlakeTwo256, IdentityLookup}, testing::Header};
+    use sr_primitives::weights::Weight;
+    use sr_primitives::Perbill;
+
+    impl_outer_origin! {
+        pub enum Origin for Test {}
+    }
+
+    use crate::plasma_cash as module;
+    impl_outer_event! {
+        pub enum TestEvent for Test {
+            module<T>,
+        }
+    }
+
+    #[derive(Clone, Eq, PartialEq)]
+    pub struct Test;
+    parameter_types! {
+        pub const BlockHashCount: u64 = 250;
+        pub const MaximumBlockWeight: Weight = 1024;
+        pub const MaximumBlockLength: u32 = 2 * 1024;
+        pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+    }
+	impl system::Trait for Test {
+		type Origin = Origin;
+		type Call = ();
+		type Index = u64;
+		type BlockNumber = u64;
+		type Hash = H256;
+		type Hashing = BlakeTwo256;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<Self::AccountId>;
+		type Header = Header;
+		type WeightMultiplierUpdate = ();
+		type Event = TestEvent;
+		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type MaximumBlockLength = MaximumBlockLength;
+		type AvailableBlockRatio = AvailableBlockRatio;
+		type Version = ();
+	}
+	impl Trait for Test {
+		type Event = TestEvent;
+	}
+
+	type PlasmaCash = Module<Test>;
+	//type SystemModule = system::Module<Test>; // Used for events
+
+    // This function basically just builds a genesis storage key/value store according to
+    // our desired mockup.
+    fn new_test_ext() -> runtime_io::TestExternalities<Blake2Hasher> {
+        system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+    }
+
+    #[test]
+    fn can_deposit() {
+        with_externalities(&mut new_test_ext(), || {
+            let token_id = U256::from(123);
+            let account_id = 1;
+            assert_eq!(PlasmaCash::tokens(token_id), None);
+            assert_ok!(PlasmaCash::deposit(Origin::signed(account_id), token_id));
+            assert_eq!(PlasmaCash::tokens(token_id), Some(account_id));
+        });
+    }
+
+    #[test]
+    fn can_withdraw() {
+        with_externalities(&mut new_test_ext(), || {
+            let token_id = U256::from(123);
+            let account_id = 1;
+            assert_ok!(PlasmaCash::deposit(Origin::signed(account_id), token_id));
+            assert_eq!(PlasmaCash::tokens(token_id), Some(account_id));
+            assert_ok!(PlasmaCash::withdraw(Origin::signed(account_id), token_id));
+            assert_eq!(PlasmaCash::tokens(token_id), None);
+        });
+    }
+
+    #[test]
+    fn cant_withdraw_dne() {
+        with_externalities(&mut new_test_ext(), || {
+            let token_id = U256::from(123);
+            let account_id = 1;
+            assert_noop!(
+                PlasmaCash::withdraw(Origin::signed(account_id), token_id),
+                "Token must exist!"
+            );
+        });
+    }
+
+    #[test]
+    fn only_owner_can_withdraw() {
+        with_externalities(&mut new_test_ext(), || {
+            let token_id = U256::from(123);
+            let account1_id = 1;
+            let account2_id = 2;
+            assert_ok!(PlasmaCash::deposit(Origin::signed(account1_id), token_id));
+            assert_eq!(PlasmaCash::tokens(token_id), Some(account1_id));
+            assert_noop!(
+                PlasmaCash::withdraw(Origin::signed(account2_id), token_id),
+                "Current owner did not sign transaction!"
+            );
+            assert_eq!(PlasmaCash::tokens(token_id), Some(account1_id));
+        });
+    }
+
+    #[test]
+    fn can_transfer() {
+        with_externalities(&mut new_test_ext(), || {
+            let token_id = U256::from(123);
+            let account1_id = 1;
+            let account2_id = 2;
+            assert_ok!(PlasmaCash::deposit(Origin::signed(account1_id), token_id));
+            assert_eq!(PlasmaCash::tokens(token_id), Some(account1_id));
+            assert_ok!(PlasmaCash::transfer(Origin::signed(account1_id), token_id, account2_id));
+            assert_eq!(PlasmaCash::tokens(token_id), Some(account2_id));
+        });
+    }
+
+    #[test]
+    fn cant_transfer_dne() {
+        with_externalities(&mut new_test_ext(), || {
+            let token_id = U256::from(123);
+            let account1_id = 1;
+            let account2_id = 2;
+            assert_noop!(
+                PlasmaCash::transfer(Origin::signed(account1_id), token_id, account2_id),
+                "Token must exist!"
+            );
+        });
+    }
+
+    #[test]
+    fn only_owner_can_transfer() {
+        with_externalities(&mut new_test_ext(), || {
+            let token_id = U256::from(123);
+            let account1_id = 1;
+            let account2_id = 2;
+            assert_ok!(PlasmaCash::deposit(Origin::signed(account1_id), token_id));
+            assert_noop!(
+                PlasmaCash::transfer(Origin::signed(account2_id), token_id, account1_id),
+                "Current owner did not sign transaction!"
+            );
+        });
+    }
+}
