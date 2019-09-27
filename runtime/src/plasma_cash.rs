@@ -43,8 +43,12 @@ decl_module! {
             let who = ensure_signed(origin)?;
 
             // Token should exist, check and get current owner
+            ensure!(
+                <Tokens<T>>::exists(token_id),
+                "Token must exist!"
+            );
             let prev_owner: T::AccountId = <Tokens<T>>::get(token_id)
-                .expect("Deposit does not exist!");
+                .expect("should pass if above works; qed");
 
             // Check provenence
             ensure!(
@@ -85,8 +89,12 @@ decl_module! {
             // TODO find a way to sync with rootchain finalize withdrawal events
 
             // Token should exist, check and get current owner
+            ensure!(
+                <Tokens<T>>::exists(token_id),
+                "Token must exist!"
+            );
             let prev_owner: T::AccountId = <Tokens<T>>::get(token_id)
-                .expect("Deposit does not exist!");
+                .expect("should pass if above works; qed");
 
             // Check provenence
             ensure!(
