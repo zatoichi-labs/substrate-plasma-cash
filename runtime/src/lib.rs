@@ -253,6 +253,24 @@ construct_runtime!(
     }
 );
 
+// Temporary, to mock the space for the tip until the polkadot.js API
+// is fixed to allow not having the tip
+use codec::{Encode, Decode};
+use sr_primitives::traits::SignedExtension;
+#[derive(Debug, Encode, Decode, Clone, Eq, PartialEq)]
+pub struct MockNoTip(#[codec(compact)] u128);
+impl SignedExtension for MockNoTip {
+    type AccountId = AccountId;
+    type Call = Call;
+    type AdditionalSigned = ();
+    type Pre = ();
+    fn additional_signed(
+        &self
+    ) -> Result<Self::AdditionalSigned, &'static str> {
+        Ok(())
+    }
+}
+
 /// The address format for describing accounts.
 pub type Address = <Indices as StaticLookup>::Source;
 /// Block header type as expected by this runtime.
@@ -270,6 +288,8 @@ pub type SignedExtra = (
     system::CheckEra<Runtime>,
     system::CheckNonce<Runtime>,
     system::CheckWeight<Runtime>,
+    // Temporary until https://github.com/polkadot-js/api/issues/1427 is resolved
+    MockNoTip,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
