@@ -60,3 +60,5 @@ cargo run -- \
 ```
 
 Additional CLI usage options are available and may be shown by running `cargo run -- --help`.
+
+Note: If using Docker image, please replace `cargo run --` with `docker run -it --network host [container-name]`
