@@ -57,10 +57,10 @@ decl_module! {
             );
 
             // Overwrite previous entry, but that's okay because we check it above
-            <Tokens<T>>::insert(token_id, new_owner);
+            <Tokens<T>>::insert(token_id, &new_owner);
 
-            // TODO Unsure why we can't this to work w/ types
-            //Self::deposit_event(Event::Transfer(token_id, who, new_owner));
+            // Emit Event
+            Self::deposit_event(RawEvent::Transfer(token_id, who, new_owner));
             Ok(())
         }
 
@@ -76,10 +76,10 @@ decl_module! {
             );
 
             //  adds deposit from Rootchain into state/txn database
-            <Tokens<T>>::insert(token_id, who);
+            <Tokens<T>>::insert(token_id, &who);
 
-            // TODO Unsure why we can't this to work w/ types
-            //Self::deposit_event(Event::Deposit(token_id, who));
+            // Emit Event
+            Self::deposit_event(RawEvent::Deposit(token_id, who));
             Ok(())
         }
 
@@ -105,8 +105,8 @@ decl_module! {
             //  removes tokenId from state database (after withdrawal finalizes)
             <Tokens<T>>::remove(token_id);
 
-            // TODO Unsure why we can't this to work w/ types
-            //Self::deposit_event(Event::Withdraw(token_id, who));
+            // Emit Event
+            Self::deposit_event(RawEvent::Withdraw(token_id, who));
             Ok(())
         }
 
