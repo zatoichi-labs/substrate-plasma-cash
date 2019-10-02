@@ -19,12 +19,6 @@ use runtime_io::{sr25519_verify, blake2_256};
 use primitives::sr25519::{Public, Signature};
 use primitives::{H256, H512, U256};
 
-// For signing
-#[cfg(feature = "std")]
-use runtime_io::sr25519_sign;
-#[cfg(feature = "std")]
-use primitives::crypto::key_types;
-
 // Use Custom logic module
 use plasma_cash_tokens::{
     PlasmaCashTxn, TxnCmp,
@@ -73,19 +67,25 @@ impl UnsignedTransaction {
     }
 
     #[cfg(feature = "std")]
-    pub fn sign(&self, sender: AccountId) -> core::result::Result<Transaction, &'static str> {
-        let signature = sr25519_sign(
-            key_types::SR25519,
-            &sender,
+    pub fn add_signature(&self,
+                         sender: AccountId,
+                         signature: Signature,
+    ) -> core::result::Result<Transaction, &'static str> {
+        if sr25519_verify(
+            &signature,
             &self.hash().as_ref(),
-        ).ok_or("Could not sign transaction.")?;
-        Ok(Transaction {
-            receiver: self.receiver.clone(),
-            token_id: self.token_id,
-            prev_blk_num: self.prev_blk_num,
-            sender,
-            signature: H512::from_slice(signature.as_ref()),
-        })
+            &sender,
+        ) {
+            Ok(Transaction {
+                receiver: self.receiver.clone(),
+                token_id: self.token_id,
+                prev_blk_num: self.prev_blk_num,
+                sender,
+                signature: H512::from_slice(signature.as_ref()),
+            })
+        } else {
+            Err("Transaction is not signed by sender!")
+        }
     }
 }
 

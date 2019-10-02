@@ -1,5 +1,5 @@
 // TODO: Consider AnySignature instead of H512
-use primitives::{Pair, Public, U256};
+use primitives::{Pair, Public, U256, sr25519};
 use plasma_cash_runtime::{
     AccountId, Transaction, TokenId,
     BabeConfig, GenesisConfig, GrandpaConfig, SystemConfig, PlasmaCashConfig,
@@ -42,15 +42,16 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, Grandp
 }
 
 fn txn_for_genesis_acct(seed: &str, token_id: TokenId) -> Transaction {
-    let owner = get_from_seed::<AccountId>(seed);
+    let owner = sr25519::Pair::from_string(&format!("//{}", seed), None)
+        .expect("static values are valid; qed");
     // Construct unsigned transaction
-    Transaction::new(
-        owner.clone(),
+    let unsigned_txn = Transaction::new(
+        owner.public().clone(),
         token_id,
         U256::from(0),
-    )
-    // Return signed txn
-    .sign(owner).unwrap()
+    );
+    let signature = owner.sign(unsigned_txn.hash().as_ref());
+    unsigned_txn.add_signature(owner.public(), signature).unwrap()
 }
 
 impl Alternative {
