@@ -192,7 +192,7 @@ pub trait Trait: system::Trait {
 decl_storage! {
     trait Store for Module<T: Trait> as PlasmaCashModule {
         // State Database of Token: Transaction pairs
-        Tokens build(|config: &GenesisConfig| {
+        Tokens get(tokens) build(|config: &GenesisConfig| {
             config.initial_tokendb
                 .iter()
                 .cloned()
