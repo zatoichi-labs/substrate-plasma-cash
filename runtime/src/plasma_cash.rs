@@ -185,7 +185,7 @@ impl PlasmaCashTxn<TxnHash> for Transaction {
 
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
-    type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+    type Event: From<Event> + Into<<Self as system::Trait>::Event>;
 }
 
 // This module's storage items.
@@ -230,10 +230,9 @@ decl_module! {
 
             //  TODO reject if currently in withdrawal
 
-            Tokens::insert(txn.token_id, txn);
+            Tokens::insert(txn.token_id, &txn);
 
-            // TODO Unsure why we can't this to work w/ types
-            //Self::deposit_event(Event::Transfer(txn.token_id, txn.sender, txn.receiver));
+            Self::deposit_event(Event::Transfer(txn.token_id, txn.sender, txn.receiver));
             Ok(())
         }
 
@@ -252,7 +251,7 @@ decl_module! {
 }
 
 decl_event!(
-    pub enum Event<T> where AccountId = <T as system::Trait>::AccountId {
+    pub enum Event {
         Transfer(TokenId, AccountId, AccountId),
     }
 );
