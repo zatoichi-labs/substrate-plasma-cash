@@ -218,10 +218,12 @@ decl_module! {
             // TODO Coerce Origin into Transaction?
             let _who = ensure_signed(origin)?;
 
+            // Validate transaction
             ensure!(txn.valid(), "Transaction is not valid!");
 
+            ensure!(Tokens::exists(txn.token_id), "No deposit recorded yet!");
             let prev_txn = Tokens::get(txn.token_id)
-                .expect("No deposit recorded yet!");
+                .expect("should pass if above works; qed");
 
             ensure!(
                 txn.compare(&prev_txn) == TxnCmp::Parent,
