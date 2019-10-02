@@ -217,6 +217,7 @@ decl_module! {
         pub fn transfer(origin, txn: Transaction) -> Result {
             // TODO Coerce Origin into Transaction?
             let _who = ensure_signed(origin)?;
+            // TODO Verify _who is txn.signer
 
             // Validate transaction
             ensure!(txn.valid(), "Transaction is not valid!");
@@ -238,13 +239,34 @@ decl_module! {
             Ok(())
         }
 
-        //deposit(origin, transaction: Transaction)
-        //  only authorities can do this
-        //  adds deposit from Rootchain into state/txn database
+        pub fn deposit(origin, txn: Transaction) -> Result {
+            // TODO only authorities can do this.
+            // TODO Should this be an inherent?
+            let _who = ensure_signed(origin)?;
+            // TODO Verify _who is txn.signer
 
-        //withdraw(origin, tokenId: TokenID)
-        //  this is an inherent?
-        //  removes tokenId from state database (after withdrawal finalizes)
+            ensure!(!Tokens::exists(txn.token_id), "Token already exists!");
+
+            Tokens::insert(txn.token_id, &txn);
+
+            Self::deposit_event(Event::Deposit(txn.token_id, txn.receiver));
+            Ok(())
+        }
+
+        pub fn withdraw(origin, token_id: TokenId) -> Result {
+            // TODO Should this be an inherent?
+            let _who = ensure_signed(origin)?;
+
+            ensure!(Tokens::exists(token_id), "Token must exist!");
+
+            let txn = Tokens::get(token_id)
+                .expect("should pass if above works; qed");
+
+            // TODO Verify _who is txn.signer
+
+            Self::deposit_event(Event::Withdraw(txn.token_id, txn.sender));
+            Ok(())
+        }
 
         //on_finalize()
         //  publish block to rootchain
@@ -254,6 +276,8 @@ decl_module! {
 
 decl_event!(
     pub enum Event {
+        Deposit(TokenId, AccountId),
         Transfer(TokenId, AccountId, AccountId),
+        Withdraw(TokenId, AccountId),
     }
 );
