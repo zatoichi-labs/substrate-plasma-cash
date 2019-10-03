@@ -102,7 +102,9 @@ impl Transaction {
     }
 }
 
-impl PlasmaCashTxn<TxnHash> for Transaction {
+impl PlasmaCashTxn for Transaction {
+    type HashType = TxnHash;
+
     fn token_id(&self) -> BitVec {
         // Convert U256 to BitVec
         let mut uid_bytes: [u8; 32] = [0; 32];
