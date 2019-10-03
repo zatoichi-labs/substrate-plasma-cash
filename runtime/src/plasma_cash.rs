@@ -277,9 +277,193 @@ decl_module! {
 }
 
 decl_event!(
-    pub enum Event {
+    pub enum Event<T> where AccountId = <T as system::Trait>::AccountId {
         Deposit(TokenId, AccountId),
         Transfer(TokenId, AccountId, AccountId),
         Withdraw(TokenId, AccountId),
     }
 );
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use runtime_io::with_externalities;
+    use primitives::{Pair, H256, Blake2Hasher, sr25519};
+    use support::{impl_outer_origin, assert_ok, parameter_types, assert_noop, impl_outer_event};
+    use sr_primitives::{traits::{BlakeTwo256, IdentityLookup}, testing::Header};
+    use sr_primitives::weights::Weight;
+    use sr_primitives::Perbill;
+
+    impl_outer_origin! {
+        pub enum Origin for Test {}
+    }
+
+    use crate::plasma_cash as module;
+    impl_outer_event! {
+        pub enum TestEvent for Test {
+            module<T>,
+        }
+    }
+
+    #[derive(Clone, Eq, PartialEq)]
+    pub struct Test;
+    parameter_types! {
+        pub const BlockHashCount: u64 = 250;
+        pub const MaximumBlockWeight: Weight = 1024;
+        pub const MaximumBlockLength: u32 = 2 * 1024;
+        pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+    }
+
+    type AccountId = sr25519::Public;
+
+	impl system::Trait for Test {
+		type Origin = Origin;
+		type Call = ();
+		type Index = u64;
+		type BlockNumber = u64;
+		type Hash = H256;
+		type Hashing = BlakeTwo256;
+		type AccountId = AccountId;
+		type Lookup = IdentityLookup<Self::AccountId>;
+		type Header = Header;
+		type WeightMultiplierUpdate = ();
+		type Event = TestEvent;
+		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type MaximumBlockLength = MaximumBlockLength;
+		type AvailableBlockRatio = AvailableBlockRatio;
+		type Version = ();
+	}
+	impl Trait for Test {
+		type Event = TestEvent;
+	}
+
+	type PlasmaCash = Module<Test>;
+	//type SystemModule = system::Module<Test>; // Used for events
+
+    fn create_acct(id: u64) -> sr25519::Pair {
+        sr25519::Pair::from_string(&format!("//{}", id), None)
+            .expect("static values are valid; qed")
+    }
+
+    fn create_txn(from: &sr25519::Pair,
+                  to: AccountId,
+                  token_id: TokenId,
+                  blk_num: BlkNum) -> Transaction<AccountId>
+    {
+            let unsigned_txn = Transaction::new(
+                to,
+                token_id,
+                blk_num,
+            );
+            let signature = from.sign(unsigned_txn.hash().as_ref());
+            unsigned_txn.add_signature(from.public(), AnySignature::from(signature)).unwrap()
+    }
+
+    // This function basically just builds a genesis storage key/value store according to
+    // our desired mockup.
+    fn empty_test_ext() -> runtime_io::TestExternalities<Blake2Hasher> {
+        system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+    }
+
+    // TODO Move initial deposit to here
+    fn with_deposit_test_ext() -> runtime_io::TestExternalities<Blake2Hasher> {
+        let token_id = U256::from(123);
+        let account = create_acct(1);
+        let deposit_txn = create_txn(&account, account.public(), token_id, U256::from(0));
+        let mut ext = system::GenesisConfig::default().build_storage::<Test>().unwrap().into();
+        GenesisConfig::<Test> {
+            initial_tokendb: vec![deposit_txn]
+        }.assimilate_storage(&mut ext).unwrap();
+        ext.into()
+    }
+
+    #[test]
+    fn test_can_deposit() {
+        with_externalities(&mut empty_test_ext(), || {
+            let token_id = U256::from(123);
+            assert_eq!(PlasmaCash::tokens(token_id), None);
+            let account = create_acct(1);
+            let txn = create_txn(&account, account.public(), token_id, U256::from(0));
+            assert_ok!(PlasmaCash::deposit(Origin::signed(account.public()), txn.clone()));
+            assert_eq!(PlasmaCash::tokens(token_id), Some(txn));
+        });
+    }
+
+    #[test]
+    fn test_can_withdraw() {
+        with_externalities(&mut with_deposit_test_ext(), || {
+            let token_id = U256::from(123);
+            let account = create_acct(1);
+            assert_ok!(PlasmaCash::withdraw(Origin::signed(account.public()), token_id));
+            assert_eq!(PlasmaCash::tokens(token_id), None);
+        });
+    }
+
+    #[test]
+    fn test_cant_withdraw_dne() {
+        with_externalities(&mut empty_test_ext(), || {
+            let token_id = U256::from(123);
+            let account = create_acct(1);
+            assert_noop!(
+                PlasmaCash::withdraw(Origin::signed(account.public()), token_id),
+                "No deposit recorded yet!"
+            );
+        });
+    }
+
+    #[test]
+    fn test_only_owner_can_withdraw() {
+        with_externalities(&mut with_deposit_test_ext(), || {
+            let token_id = U256::from(123);
+            let account2 = create_acct(2);
+            let txn = PlasmaCash::tokens(token_id).unwrap();
+            assert_noop!(
+                PlasmaCash::withdraw(Origin::signed(account2.public()), token_id),
+                "Only current owner can withdraw!"
+            );
+            assert_eq!(PlasmaCash::tokens(token_id), Some(txn));
+        });
+    }
+
+    #[test]
+    fn test_can_transfer() {
+        with_externalities(&mut with_deposit_test_ext(), || {
+            let token_id = U256::from(123);
+            let account1 = create_acct(1);
+            let account2 = create_acct(2);
+            let txn = create_txn(&account1, account2.public(), token_id, U256::from(0));
+            assert_ok!(PlasmaCash::transfer(Origin::signed(account1.public()), txn.clone()));
+            assert_eq!(PlasmaCash::tokens(token_id), Some(txn.clone()));
+        });
+    }
+
+    #[test]
+    fn test_cant_transfer_dne() {
+        with_externalities(&mut empty_test_ext(), || {
+            let token_id = U256::from(123);
+            let account1 = create_acct(1);
+            let account2 = create_acct(2);
+            let txn = create_txn(&account1, account2.public(), token_id, U256::from(0));
+            assert_noop!(
+                PlasmaCash::transfer(Origin::signed(account1.public()), txn.clone()),
+                "No deposit recorded yet!"
+            );
+        });
+    }
+
+    #[test]
+    fn test_only_owner_can_transfer() {
+        with_externalities(&mut with_deposit_test_ext(), || {
+            let token_id = U256::from(123);
+            let account2 = create_acct(2);
+            let txn = create_txn(&account2, account2.public(), token_id, U256::from(0));
+            assert_noop!(
+                PlasmaCash::transfer(Origin::signed(account2.public()), txn.clone()),
+                "Current owner did not sign transaction!"
+            );
+        });
+    }
+}
