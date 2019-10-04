@@ -41,7 +41,7 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, Grandp
     )
 }
 
-fn txn_for_genesis_acct(seed: &str, token_id: TokenId) -> Transaction {
+fn txn_for_genesis_acct(seed: &str, token_id: TokenId) -> Transaction<AccountId> {
     let owner = sr25519::Pair::from_string(&format!("//{}", seed), None)
         .expect("static values are valid; qed");
     // Construct unsigned transaction
@@ -114,7 +114,7 @@ impl Alternative {
 
 fn testnet_genesis(
     initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId)>,
-    initial_tokendb: Vec<Transaction>,
+    initial_tokendb: Vec<Transaction<AccountId>>,
     _enable_println: bool
 ) -> GenesisConfig {
     GenesisConfig {

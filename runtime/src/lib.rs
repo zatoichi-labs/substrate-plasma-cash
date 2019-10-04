@@ -250,7 +250,7 @@ construct_runtime!(
         Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
         Grandpa: grandpa::{Module, Call, Storage, Config, Event},
         Indices: indices::{default, Config<T>},
-        PlasmaCash: plasma_cash::{Module, Call, Storage, Event, Config},
+        PlasmaCash: plasma_cash::{Module, Call, Storage, Event<T>, Config<T>},
     }
 );
 

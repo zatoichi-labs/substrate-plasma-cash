@@ -15,9 +15,9 @@ use serde::{Deserialize, Serialize};
 use codec::{Decode, Encode};
 
 // Cryptography primitives
-use runtime_io::{sr25519_verify, blake2_256};
-use primitives::sr25519::{Public, Signature};
-use primitives::{H256, H512, U256};
+use runtime_io::blake2_256;
+use primitives::{H256, U256, sr25519::Public};
+use sr_primitives::{AnySignature, traits::Verify};
 
 // Use Custom logic module
 use plasma_cash_tokens::{
@@ -26,31 +26,35 @@ use plasma_cash_tokens::{
 };
 
 // Custom types
-pub type AccountId = Public;
 pub type TokenId = U256;
 pub type BlkNum = U256;
-pub type TxnHash = H256;
 
 /// Transaction structure
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-pub struct Transaction {
+pub struct Transaction<AccountId>
+    where AccountId: Encode + Clone + Default + PartialEq
+{
     pub receiver: AccountId,
     pub token_id: TokenId,
     pub prev_blk_num: BlkNum,
-    sender: AccountId,
-    signature: H512,
+    pub sender: AccountId,
+    signature: AnySignature,
 }
 
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(Debug))]
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-pub struct UnsignedTransaction {
+pub struct UnsignedTransaction<AccountId>
+    where AccountId: Encode + Clone + Default + PartialEq
+{
     pub receiver: AccountId,
     pub token_id: TokenId,
     pub prev_blk_num: BlkNum,
 }
 
-impl UnsignedTransaction {
+impl<AccountId> UnsignedTransaction<AccountId>
+    where AccountId: Encode + Clone + Default + PartialEq
+{
     pub fn new(receiver: AccountId,
                token_id: TokenId,
                prev_blk_num: BlkNum) -> Self
@@ -62,37 +66,44 @@ impl UnsignedTransaction {
         }
     }
 
-    pub fn hash(&self) -> TxnHash {
+    pub fn hash(&self) -> H256 {
         H256::from(blake2_256(&self.encode()))
     }
 
     #[cfg(feature = "std")]
-    pub fn add_signature(&self,
-                         sender: AccountId,
-                         signature: Signature,
-    ) -> core::result::Result<Transaction, &'static str> {
-        if sr25519_verify(
-            &signature,
-            &self.hash().as_ref(),
-            &sender,
-        ) {
-            Ok(Transaction {
-                receiver: self.receiver.clone(),
-                token_id: self.token_id,
-                prev_blk_num: self.prev_blk_num,
-                sender,
-                signature: H512::from_slice(signature.as_ref()),
-            })
+    pub fn add_signature<Signature>(&self,
+                                    sender: AccountId,
+                                    signature: Signature,
+    ) -> core::result::Result<Transaction<AccountId>, &'static str>
+        where Signature: Encode + Verify<Signer = AccountId> + AsRef<[u8]>
+    {
+        if signature.verify(self.hash().as_ref(), &sender) {
+            let encoded_signature = signature.encode();
+            let encoded_signature = encoded_signature.clone();
+            let mut encoded_signature = encoded_signature.as_ref();
+            if let Ok(signature) = AnySignature::decode(&mut encoded_signature) {
+                Ok(Transaction {
+                    receiver: self.receiver.clone(),
+                    token_id: self.token_id,
+                    prev_blk_num: self.prev_blk_num,
+                    sender,
+                    signature,
+                })
+            } else {
+                Err("Transaction encoding error!")
+            }
         } else {
             Err("Transaction is not signed by sender!")
         }
     }
 }
 
-impl Transaction {
+impl<AccountId> Transaction<AccountId>
+    where AccountId: Encode + Clone + Default + PartialEq
+{
     pub fn new(receiver: AccountId,
                token_id: TokenId,
-               prev_blk_num: BlkNum) -> UnsignedTransaction
+               prev_blk_num: BlkNum) -> UnsignedTransaction<AccountId>
     {
         UnsignedTransaction {
             receiver,
@@ -102,8 +113,10 @@ impl Transaction {
     }
 }
 
-impl PlasmaCashTxn for Transaction {
-    type HashType = TxnHash;
+impl<AccountId> PlasmaCashTxn for Transaction<AccountId>
+    where AccountId: Encode + Clone + Default + PartialEq
+{
+    type HashType = H256;
 
     fn token_id(&self) -> BitVec {
         // Convert U256 to BitVec
@@ -112,20 +125,20 @@ impl PlasmaCashTxn for Transaction {
         BitVec::<BigEndian, u8>::from_slice(&uid_bytes)
     }
 
-    fn hash_fn() -> (fn(&[u8]) -> TxnHash) {
-        |u| TxnHash::from(blake2_256(&u))
+    fn hash_fn() -> (fn(&[u8]) -> H256) {
+        |u| H256::from(blake2_256(&u))
     }
 
-    fn empty_leaf_hash() -> TxnHash {
+    fn empty_leaf_hash() -> H256 {
         // Encode empty leaf
         UnsignedTransaction::new(
-            AccountId::from_raw([0; 32]),
+            AccountId::default(),
             TokenId::zero(),
             BlkNum::zero(),
         ).hash()
     }
 
-    fn leaf_hash(&self) -> TxnHash {
+    fn leaf_hash(&self) -> H256 {
         // Encode leaf
         UnsignedTransaction::new(
             self.receiver.clone(),
@@ -135,11 +148,16 @@ impl PlasmaCashTxn for Transaction {
     }
 
     fn valid(&self) -> bool {
-        sr25519_verify(
-            &Signature::from_h512(self.signature),
-            self.leaf_hash().as_ref(),
-            &self.sender,
-        )
+        // This trick is safe because we validate the signature in `add_signature()`,
+        // and any decoding failures will return false
+        let encoded_sender = self.sender.encode();
+        let encoded_sender = encoded_sender.clone();
+        let mut encoded_sender = encoded_sender.as_ref();
+        if let Ok(sender) = Public::decode(&mut encoded_sender) {
+            self.signature.verify(self.leaf_hash().as_ref(), &sender)
+        } else {
+            false // decoding error
+        }
     }
 
     fn compare(&self, other: &Self) -> TxnCmp {
@@ -187,14 +205,14 @@ impl PlasmaCashTxn for Transaction {
 
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
-    type Event: From<Event> + Into<<Self as system::Trait>::Event>;
+    type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 }
 
 // This module's storage items.
 decl_storage! {
     trait Store for Module<T: Trait> as PlasmaCashModule {
         // State Database of Token: Transaction pairs
-        Tokens get(tokens) build(|config: &GenesisConfig| {
+        Tokens get(tokens) build(|config: &GenesisConfig<T>| {
             config.initial_tokendb
                 .iter()
                 .cloned()
@@ -202,13 +220,13 @@ decl_storage! {
                 // TODO Fix this!
                 .map(|txn| (txn.token_id, txn))
                 .collect::<Vec<_>>()
-        }): map TokenId => Option<Transaction>;
+        }): map TokenId => Option<Transaction<T::AccountId>>;
     }
 
     // Genesis may be empty (or not, if starting with some initial params)
     // Note: Might be desirable for privacy properties to start non-empty?
     add_extra_genesis {
-        config(initial_tokendb): Vec<Transaction>;
+        config(initial_tokendb): Vec<Transaction<T::AccountId>>;
     }
 }
 
@@ -216,57 +234,64 @@ decl_module! {
     pub struct Module<T: Trait> for enum Call where origin: T::Origin {
         fn deposit_event() = default;
 
-        pub fn transfer(origin, txn: Transaction) -> Result {
+        pub fn transfer(origin, txn: Transaction<T::AccountId>) -> Result {
             // TODO Coerce Origin into Transaction?
-            let _who = ensure_signed(origin)?;
-            // TODO Verify _who is txn.signer
+            let who = ensure_signed(origin)?;
+            // NOTE This is temporary until the extrinsic itself is the transaction
+            ensure!(who == txn.sender, "Only Transaction signer can submit!");
 
             // Validate transaction
             ensure!(txn.valid(), "Transaction is not valid!");
 
-            ensure!(Tokens::exists(txn.token_id), "No deposit recorded yet!");
-            let prev_txn = Tokens::get(txn.token_id)
+            ensure!(<Tokens<T>>::exists(txn.token_id), "No deposit recorded yet!");
+            let prev_txn = <Tokens<T>>::get(txn.token_id)
                 .expect("should pass if above works; qed");
 
             ensure!(
-                txn.compare(&prev_txn) == TxnCmp::Parent,
+                txn.compare(&prev_txn) == TxnCmp::Child,
                 "Current owner did not sign transaction!"
             );
 
             //  TODO reject if currently in withdrawal
 
-            Tokens::insert(txn.token_id, &txn);
+            <Tokens<T>>::insert(txn.token_id, &txn);
 
-            Self::deposit_event(Event::Transfer(txn.token_id, txn.sender, txn.receiver));
+            Self::deposit_event(RawEvent::Transfer(txn.token_id, txn.sender, txn.receiver));
             Ok(())
         }
 
-        pub fn deposit(origin, txn: Transaction) -> Result {
+        pub fn deposit(origin, txn: Transaction<T::AccountId>) -> Result {
             // TODO only authorities can do this.
             // TODO Should this be an inherent?
-            let _who = ensure_signed(origin)?;
-            // TODO Verify _who is txn.signer
+            let who = ensure_signed(origin)?;
+            // NOTE This is temporary until the extrinsic itself is the transaction
+            ensure!(who == txn.sender, "Only Transaction signer can submit!");
 
-            ensure!(!Tokens::exists(txn.token_id), "Token already exists!");
+            // Validate transaction
+            ensure!(txn.valid(), "Transaction is not valid!");
 
-            Tokens::insert(txn.token_id, &txn);
+            ensure!(!<Tokens<T>>::exists(txn.token_id), "Token already exists!");
 
-            Self::deposit_event(Event::Deposit(txn.token_id, txn.receiver));
+            <Tokens<T>>::insert(txn.token_id, &txn);
+
+            Self::deposit_event(RawEvent::Deposit(txn.token_id, txn.receiver));
             Ok(())
         }
 
         pub fn withdraw(origin, token_id: TokenId) -> Result {
             // TODO Should this be an inherent?
-            let _who = ensure_signed(origin)?;
+            let who = ensure_signed(origin)?;
 
-            ensure!(Tokens::exists(token_id), "Token must exist!");
+            ensure!(<Tokens<T>>::exists(token_id), "No deposit recorded yet!");
 
-            let txn = Tokens::get(token_id)
+            let txn = <Tokens<T>>::get(token_id)
                 .expect("should pass if above works; qed");
 
-            // TODO Verify _who is txn.signer
+            ensure!(who == txn.sender, "Only current owner can withdraw!");
 
-            Self::deposit_event(Event::Withdraw(txn.token_id, txn.sender));
+            <Tokens<T>>::remove(token_id);
+
+            Self::deposit_event(RawEvent::Withdraw(txn.token_id, txn.sender));
             Ok(())
         }
 
@@ -359,7 +384,7 @@ mod tests {
                 blk_num,
             );
             let signature = from.sign(unsigned_txn.hash().as_ref());
-            unsigned_txn.add_signature(from.public(), AnySignature::from(signature)).unwrap()
+            unsigned_txn.add_signature(from.public(), signature).unwrap()
     }
 
     // This function basically just builds a genesis storage key/value store according to
