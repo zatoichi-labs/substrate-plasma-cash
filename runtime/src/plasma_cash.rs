@@ -16,8 +16,8 @@ use codec::{Decode, Encode};
 
 // Cryptography primitives
 use runtime_io::blake2_256;
-use primitives::{H256, U256, sr25519::Public};
-use sr_primitives::{AnySignature, traits::Verify};
+use primitives::{H256, U256};
+use sr_primitives::traits::{Member, Verify};
 
 // Use Custom logic module
 use plasma_cash_tokens::{
@@ -32,20 +32,21 @@ pub type BlkNum = U256;
 /// Transaction structure
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-pub struct Transaction<AccountId>
-    where AccountId: Encode + Clone + Default + PartialEq
+pub struct Transaction<AccountId, Signature>
+    where AccountId: Default + Encode + Decode + Member,
+          Signature: Encode + Decode + Member + Verify<Signer = AccountId>,
 {
     pub receiver: AccountId,
     pub token_id: TokenId,
     pub prev_blk_num: BlkNum,
     pub sender: AccountId,
-    signature: AnySignature,
+    signature: Signature,
 }
 
 #[cfg_attr(feature = "std", derive(Debug))]
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 pub struct UnsignedTransaction<AccountId>
-    where AccountId: Encode + Clone + Default + PartialEq
+    where AccountId: Default + Encode + Decode + Member,
 {
     pub receiver: AccountId,
     pub token_id: TokenId,
@@ -53,7 +54,7 @@ pub struct UnsignedTransaction<AccountId>
 }
 
 impl<AccountId> UnsignedTransaction<AccountId>
-    where AccountId: Encode + Clone + Default + PartialEq
+    where AccountId: Default + Encode + Decode + Member,
 {
     pub fn new(receiver: AccountId,
                token_id: TokenId,
@@ -74,32 +75,26 @@ impl<AccountId> UnsignedTransaction<AccountId>
     pub fn add_signature<Signature>(&self,
                                     sender: AccountId,
                                     signature: Signature,
-    ) -> core::result::Result<Transaction<AccountId>, &'static str>
-        where Signature: Encode + Verify<Signer = AccountId> + AsRef<[u8]>
+    ) -> core::result::Result<Transaction<AccountId, Signature>, &'static str>
+        where Signature: Encode + Decode + Member + Verify<Signer = AccountId>,
     {
         if signature.verify(self.hash().as_ref(), &sender) {
-            let encoded_signature = signature.encode();
-            let encoded_signature = encoded_signature.clone();
-            let mut encoded_signature = encoded_signature.as_ref();
-            if let Ok(signature) = AnySignature::decode(&mut encoded_signature) {
-                Ok(Transaction {
-                    receiver: self.receiver.clone(),
-                    token_id: self.token_id,
-                    prev_blk_num: self.prev_blk_num,
-                    sender,
-                    signature,
-                })
-            } else {
-                Err("Transaction encoding error!")
-            }
+            Ok(Transaction {
+                receiver: self.receiver.clone(),
+                token_id: self.token_id,
+                prev_blk_num: self.prev_blk_num,
+                sender,
+                signature,
+            })
         } else {
             Err("Transaction is not signed by sender!")
         }
     }
 }
 
-impl<AccountId> Transaction<AccountId>
-    where AccountId: Encode + Clone + Default + PartialEq
+impl<AccountId, Signature> Transaction<AccountId, Signature>
+    where AccountId: Default + Encode + Decode + Member,
+          Signature: Encode + Decode + Member + Verify<Signer = AccountId>,
 {
     pub fn new(receiver: AccountId,
                token_id: TokenId,
@@ -113,8 +108,9 @@ impl<AccountId> Transaction<AccountId>
     }
 }
 
-impl<AccountId> PlasmaCashTxn for Transaction<AccountId>
-    where AccountId: Encode + Clone + Default + PartialEq
+impl<AccountId, Signature> PlasmaCashTxn for Transaction<AccountId, Signature>
+    where AccountId: Default + Encode + Decode + Member,
+          Signature: Encode + Decode + Member + Verify<Signer = AccountId>,
 {
     type HashType = H256;
 
@@ -148,16 +144,7 @@ impl<AccountId> PlasmaCashTxn for Transaction<AccountId>
     }
 
     fn valid(&self) -> bool {
-        // This trick is safe because we validate the signature in `add_signature()`,
-        // and any decoding failures will return false
-        let encoded_sender = self.sender.encode();
-        let encoded_sender = encoded_sender.clone();
-        let mut encoded_sender = encoded_sender.as_ref();
-        if let Ok(sender) = Public::decode(&mut encoded_sender) {
-            self.signature.verify(self.leaf_hash().as_ref(), &sender)
-        } else {
-            false // decoding error
-        }
+        self.signature.verify(self.leaf_hash().as_ref(), &self.sender)
     }
 
     fn compare(&self, other: &Self) -> TxnCmp {
@@ -206,6 +193,7 @@ impl<AccountId> PlasmaCashTxn for Transaction<AccountId>
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
     type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+    type Signature: Encode + Decode + Member + Verify<Signer = <Self as system::Trait>::AccountId>;
 }
 
 // This module's storage items.
@@ -220,13 +208,13 @@ decl_storage! {
                 // TODO Fix this!
                 .map(|txn| (txn.token_id, txn))
                 .collect::<Vec<_>>()
-        }): map TokenId => Option<Transaction<T::AccountId>>;
+        }): map TokenId => Option<Transaction<T::AccountId, T::Signature>>;
     }
 
     // Genesis may be empty (or not, if starting with some initial params)
     // Note: Might be desirable for privacy properties to start non-empty?
     add_extra_genesis {
-        config(initial_tokendb): Vec<Transaction<T::AccountId>>;
+        config(initial_tokendb): Vec<Transaction<T::AccountId, T::Signature>>;
     }
 }
 
@@ -234,7 +222,7 @@ decl_module! {
     pub struct Module<T: Trait> for enum Call where origin: T::Origin {
         fn deposit_event() = default;
 
-        pub fn transfer(origin, txn: Transaction<T::AccountId>) -> Result {
+        pub fn transfer(origin, txn: Transaction<T::AccountId, T::Signature>) -> Result {
             // TODO Coerce Origin into Transaction?
             let who = ensure_signed(origin)?;
             // NOTE This is temporary until the extrinsic itself is the transaction
@@ -260,7 +248,7 @@ decl_module! {
             Ok(())
         }
 
-        pub fn deposit(origin, txn: Transaction<T::AccountId>) -> Result {
+        pub fn deposit(origin, txn: Transaction<T::AccountId, T::Signature>) -> Result {
             // TODO only authorities can do this.
             // TODO Should this be an inherent?
             let who = ensure_signed(origin)?;
@@ -319,7 +307,7 @@ mod tests {
     use support::{impl_outer_origin, assert_ok, parameter_types, assert_noop, impl_outer_event};
     use sr_primitives::{traits::{BlakeTwo256, IdentityLookup}, testing::Header};
     use sr_primitives::weights::Weight;
-    use sr_primitives::Perbill;
+    use sr_primitives::{Perbill, AnySignature};
 
     impl_outer_origin! {
         pub enum Origin for Test {}
@@ -363,6 +351,7 @@ mod tests {
 	}
 	impl Trait for Test {
 		type Event = TestEvent;
+        type Signature = AnySignature;
 	}
 
 	type PlasmaCash = Module<Test>;
@@ -376,15 +365,15 @@ mod tests {
     fn create_txn(from: &sr25519::Pair,
                   to: AccountId,
                   token_id: TokenId,
-                  blk_num: BlkNum) -> Transaction<AccountId>
+                  blk_num: BlkNum) -> Transaction<AccountId, AnySignature>
     {
-            let unsigned_txn = Transaction::new(
+            let unsigned_txn = Transaction::<AccountId, AnySignature>::new(
                 to,
                 token_id,
                 blk_num,
             );
             let signature = from.sign(unsigned_txn.hash().as_ref());
-            unsigned_txn.add_signature(from.public(), signature).unwrap()
+            unsigned_txn.add_signature(from.public(), signature.into()).unwrap()
     }
 
     // This function basically just builds a genesis storage key/value store according to

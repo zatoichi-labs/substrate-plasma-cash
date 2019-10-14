@@ -14,7 +14,10 @@ use sr_primitives::{
     ApplyResult, transaction_validity::TransactionValidity, generic, create_runtime_str,
     impl_opaque_keys, AnySignature,
 };
-use sr_primitives::traits::{NumberFor, BlakeTwo256, Block as BlockT, DigestFor, StaticLookup, Verify};
+use sr_primitives::traits::{
+    NumberFor, Block as BlockT, DigestFor, StaticLookup,
+    BlakeTwo256, Verify,
+};
 use sr_primitives::weights::Weight;
 
 use babe::{AuthorityId as BabeId};
@@ -237,6 +240,7 @@ parameter_types! {
 
 impl plasma_cash::Trait for Runtime {
     type Event = Event;
+    type Signature = Signature;
 }
 
 construct_runtime!(

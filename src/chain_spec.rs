@@ -1,7 +1,7 @@
 // TODO: Consider AnySignature instead of H512
 use primitives::{Pair, Public, U256, sr25519};
 use plasma_cash_runtime::{
-    AccountId, Transaction, TokenId,
+    AccountId, Signature, Transaction, TokenId,
     BabeConfig, GenesisConfig, GrandpaConfig, SystemConfig, PlasmaCashConfig,
     WASM_BINARY,
 };
@@ -41,17 +41,17 @@ pub fn get_authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, Grandp
     )
 }
 
-fn txn_for_genesis_acct(seed: &str, token_id: TokenId) -> Transaction<AccountId> {
+fn txn_for_genesis_acct(seed: &str, token_id: TokenId) -> Transaction<AccountId, Signature> {
     let owner = sr25519::Pair::from_string(&format!("//{}", seed), None)
         .expect("static values are valid; qed");
     // Construct unsigned transaction
-    let unsigned_txn = Transaction::new(
+    let unsigned_txn = Transaction::<AccountId, Signature>::new(
         owner.public().clone(),
         token_id,
-        U256::from(0),
+        U256::from(0), // Genesis block
     );
     let signature = owner.sign(unsigned_txn.hash().as_ref());
-    unsigned_txn.add_signature(owner.public(), signature).unwrap()
+    unsigned_txn.add_signature(owner.public(), signature.into()).unwrap()
 }
 
 impl Alternative {
@@ -114,7 +114,7 @@ impl Alternative {
 
 fn testnet_genesis(
     initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId)>,
-    initial_tokendb: Vec<Transaction<AccountId>>,
+    initial_tokendb: Vec<Transaction<AccountId, Signature>>,
     _enable_println: bool
 ) -> GenesisConfig {
     GenesisConfig {
